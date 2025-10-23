@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Recruit 101 — Rescue</title>
+<style>
+body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0b0c10;color:#f8fafc}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
+.card{background:#0f172a;border:1px solid #1f2937;border-radius:14px;padding:14px;margin-bottom:12px}
+.row{display:grid;grid-template-columns:140px 1fr 1fr 1fr 1fr 1fr 1fr 1fr;gap:8px;align-items:center;padding:8px;border-bottom:1px solid #1f2937}
+.head{position:sticky;top:0;background:#0f172a;font-size:12px;text-transform:uppercase;opacity:.85}
+input,select,button{font:inherit;border-radius:10px;border:1px solid #64748b;background:#0b1220;color:#fff;padding:8px}
+button.primary{background:#e11d48;border-color:#e11d48}
+.badge{display:inline-block;background:#334155;color:#f1f5f9;border-radius:999px;padding:6px 10px;font-size:12px}
+.small{font-size:12px;color:#94a3b8}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card flex">
+    <div class="badge">Rescue Build</div>
+    <div id="apiHost" class="small"></div>
+    <div class="small">• Always opens WhatsApp in a new window • No auto-resets</div>
+  </div>
+
+  <div class="card">
+    <div class="flex">
+      <label>Tab gid:</label>
+      <input id="gid" placeholder="Paste gid here (from sheet URL)" style="min-width:240px">
+      <label>Status:</label>
+      <select id="flt"></select>
+      <input id="q" placeholder="Search name/agency" style="min-width:240px">
+      <button id="load" class="primary">Load</button>
+      <button id="refresh">Refresh</button>
+    </div>
+    <div id="msg" class="small" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card" style="overflow:auto">
+    <div class="row head">
+      <div>Message</div><div>Status</div><div>WhatsApp</div><div>Name</div><div>Surname</div><div>Number</div><div>Agency</div><div>Notes</div>
+    </div>
+    <div id="rows"></div>
+  </div>
+</div>
+
+<script>
+const EXEC_URL = "https://script.google.com/macros/s/AKfycbwHjksDaz3JAxsdESl1PV2Ysj4Lh_vXHOOkyNIb1JTYVkk08bnAM5tlxypapeM7eLwJ/exec";
+const STATUS_OPTIONS=["","To Contact","Whatsapp","Reply","Keen to meet","Cultivate","Invite to events","Not interested","No Whatsapp","Unsubscribe","Referred","Event Invite Sent","Event Invite Accepted"];
+const $=id=>document.getElementById(id);
+const E={ gid:$("gid"), flt:$("flt"), q:$("q"), load:$("load"), refresh:$("refresh"), rows:$("rows"), msg:$("msg"), apiHost:$("apiHost") };
+E.flt.innerHTML = STATUS_OPTIONS.map(s=>`<option value="${s}">${s||"(All)"}</option>`).join("");
+try{ E.apiHost.textContent = new URL(EXEC_URL).host; }catch(_){}
+let ALL=[];
+function apiUrl(action, params={}){
+  const u=new URL(EXEC_URL); if(action) u.searchParams.set("action", action);
+  const gid=(E.gid.value||"").trim(); if(gid) u.searchParams.set("gid", gid);
+  for(const [k,v] of Object.entries(params||{})) u.searchParams.set(k,v);
+  u.searchParams.set("t", Date.now()); return u.toString();
+}
+async function jget(action, params={}){ const r=await fetch(apiUrl(action, params), {mode:'cors'}); if(!r.ok) throw new Error(r.status); return r.json(); }
+async function jpost(action, payload={}){ const r=await fetch(apiUrl(), {method:'POST', body:JSON.stringify({action,payload}), mode:'cors'}); if(!r.ok) throw new Error(r.status); return r.json(); }
+function parseWa(waLink){ try{ const u=new URL(waLink); return { phone:u.pathname.replace(/\//g,'').trim(), text:u.searchParams.get('text')||'' }; }catch(_){ return { phone:'', text:'' }; } }
+function openWhatsAppInNewWindow(waLink){
+  const {phone,text} = parseWa(waLink);
+  const appUrl = `whatsapp://send?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(text)}`;
+  const features = 'noopener,noreferrer,width=1080,height=900,left=80,top=60,menubar=yes,toolbar=yes,location=yes,status=no,scrollbars=yes,resizable=yes';
+  let w=null; try{ w=window.open('about:blank','_blank',features); }catch(_){}
+  if(w){ try{ w.opener=null; }catch(_){}
+    try{ w.location.href=appUrl; }catch(_){ try{ w.location=appUrl; }catch(__){} }
+    setTimeout(()=>{ try{ w.location.href = waLink; }catch(__){} }, 1200); return; }
+  const a=document.createElement('a'); a.href=appUrl; a.target='_blank'; a.rel='noopener noreferrer'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>{ window.open(waLink,'_blank',features); }, 1200);
+}
+function row(r){
+  const div=document.createElement('div'); div.className='row';
+  const m=document.createElement('div'); m.innerHTML=`<span class="badge">${r.messageType||'Recruit'}</span>`;
+  const s=document.createElement('div'); s.innerHTML=`<select>${STATUS_OPTIONS.filter(x=>x).map(s=>`<option value="${s}"${s===(r.status||'')?' selected':''}>${s}</option>`).join('')}</select>`; const sel=s.querySelector('select'); sel.onchange=async()=>{ sel.disabled=true; try{ await jpost('updateSingleStatus', {rowNumber:r.rowNumber,newStatus:sel.value}); r.status=sel.value; } finally{ sel.disabled=false; } };
+  const w=document.createElement('div'); const btn=document.createElement('button'); btn.textContent='Send'; btn.className='primary'; btn.disabled=!/^https:\/\/(wa\.me|web\.whatsapp\.com|api\.whatsapp\.com)\//.test(r.waLink||''); btn.onclick=(e)=>{e.preventDefault();openWhatsAppInNewWindow(r.waLink);}; w.appendChild(btn);
+  const n1=document.createElement('div'); n1.textContent=r.name||'';
+  const n2=document.createElement('div'); n2.textContent=r.surname||'';
+  const n3=document.createElement('div'); n3.textContent=r.cell||'';
+  const n4=document.createElement('div'); n4.textContent=r.agency||'';
+  const nt=document.createElement('div'); const nb=document.createElement('button'); nb.textContent='Edit'; nb.onclick=async()=>{ const v=prompt('Edit note for '+(r.name||''), r.notes||''); if(v===null) return; nb.disabled=true; try{ await jpost('updateNote', {rowNumber:r.rowNumber, note:v}); r.notes=v; } finally{ nb.disabled=false; } }; nt.appendChild(nb);
+  div.append(m,s,w,n1,n2,n3,n4,nt); return div;
+}
+function apply(){
+  const q=($("q").value||'').toLowerCase().trim(); const f=(E.flt.value||'').trim();
+  const filtered = ALL.filter(r=>{ if(f && f!==(r.status||'')) return false; if(q && !(String(r.name||'').toLowerCase().includes(q)||String(r.surname||'').toLowerCase().includes(q)||String(r.agency||'').toLowerCase().includes(q))) return false; return true; });
+  $("rows").innerHTML=''; filtered.forEach(r=>$("rows").appendChild(row(r)));
+  E.msg.textContent = `Total: ${ALL.length} • Showing: ${filtered.length}`;
+}
+async function load(){
+  E.msg.textContent='Loading…';
+  try{
+    const js = await jget('recipients', (E.flt.value||'')?{status:E.flt.value}:{ });
+    ALL = js.recipients||[];
+    if(!ALL.length) E.msg.textContent='No rows returned. Check gid (from #gid= in the sheet URL) and click Load again.';
+    else E.msg.textContent='Data loaded.';
+    apply();
+  }catch(e){
+    E.msg.textContent = 'Failed to load. Check deployment access and gid. ' + e;
+  }
+}
+E.load.onclick=load; E.refresh.onclick=load; $("q").oninput=apply; E.flt.onchange=apply;
+</script>
+</body>
+</html>
