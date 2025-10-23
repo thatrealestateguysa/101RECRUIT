@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruit 101 Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+</head>
+<body>
+
+    <div id="loader" class="hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <div id="toast" class="hidden"></div>
+
+    <header>
+        <div class="container">
+            <h1>📊 Recruit 101 Dashboard</h1>
+        </div>
+    </header>
+
+    <main class="container">
+        <section id="stats-container">
+            </section>
+
+        <section class="table-card">
+            <div class="table-controls">
+                <div class="filter-group">
+                    <label for="status-filter">Filter by Status:</label>
+                    <select id="status-filter">
+                        <option value="">All Contacts</option>
+                    </select>
+                </div>
+                <div class="bulk-actions">
+                    <button id="bulk-update-btn">Update Selected</button>
+                    <select id="bulk-status-select"></select>
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table id="contacts-table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="select-all-checkbox"></th>
+                            <th>Name</th>
+                            <th>Agency</th>
+                            <th>Cell Nr</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <div id="notes-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="modal-close-btn">&times;</button>
+            <h2>Notes for <span id="notes-modal-name"></span></h2>
+            <textarea id="notes-textarea" rows="8" placeholder="Enter notes..."></textarea>
+            <button id="notes-save-btn">Save Notes</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
